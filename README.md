@@ -11,40 +11,13 @@ Given a trained HRM checkpoint solving Sudoku-Extreme, the goal is to understand
 what the model's high-level (H-level) hidden states represent across its
 reasoning cycles:
 
-- **Extract** H-level residual-stream activations with PyTorch forward hooks
-  (no changes to the HRM model itself, see `probing_analysis.py`).
-- **Compress** them with two autoencoders (an Undercomplete Autoencoder (UAE)
-  and a Sparse Autoencoder (SAE)) to find low-dimensional / sparse structure.
-- **Test** whether the raw, UAE, and SAE embeddings still carry information about
+- **Extract** H-level residual-stream activations with PyTorch forward hooks (see `probing_analysis.py`).
+- **Compress** them with two autoencoders (UAE, SAE) to find low-dimensional / sparse structure.
+- **Test** whether the raw, UAE, and SAE embeddings carry information about
   which reasoning (ACT) cycle the model is in, and which SAE features fire on
   which cycle.
 
-All probing code lives in `probing/`:
-
-| Script | Purpose |
-| --- | --- |
-| `probing/probing_analysis.py` | Extract hidden states via forward hooks. |
-| `probing/train_uae_cluster.py` | Train the undercomplete autoencoder. |
-| `probing/train_sae_cluster.py` | Train the sparse autoencoder. |
-| `probing/classify_cycle_embeddings.py` | Test whether raw/UAE/SAE embeddings predict the ACT cycle. |
-| `probing/analyze_sae_cycles.py` | Compute SAE feature activity per ACT cycle. |
-| `probing/probing_sudoku_structured.py` | Structured extractor for cell-level Sudoku probes. |
-| `probing/train_sudoku_probe.py` | Train cell→digit probes from structured activations. |
-
 ## Results
-
-### SAE sparsity across reasoning cycles
-
-The H-level SAE shows a spike at cycle 1 (~98 active features/token) followed
-by strictly monotonic decrease down to ~75 active features/token. (Note: During these experiments the Q-Head responsible for early stopping was disabled)
-
-![SAE sparsity across HRM reasoning cycles](results/cycle_analysis/avg_active_features_by_cycle.png)
-
-### Cycle-specific SAE features
-
-Top 50 most cycle-varying features. A cluster of features fires almost exclusively at cycles 0–2 and then goes silent, other features are almost indistinct.
-
-![Top 50 cycle-varying SAE features](results/cycle_analysis/feature_cycle_heatmap.png)
 
 ### Digit probe accuracy across cycles
 
@@ -59,9 +32,37 @@ H-state progressively encodes the solution rather than just memorising the input
 
 ![Blank-cell digit probe accuracy](results/sudoku_probe/blank_accuracy_by_cycle.png)
 
-The rest of the result figures and metrics live under `results/`. Trained weights and raw
-activation dumps are not committed, but feel free to rerun
-the scripts to regenerate them.
+
+### Cycle-specific SAE features
+
+Top 50 most cycle-varying features. A cluster of features fires almost exclusively at cycles 0–2 and then goes silent, other features are almost indistinct.
+
+![Top 50 cycle-varying SAE features](results/cycle_analysis/feature_cycle_heatmap.png)
+
+### SAE sparsity across reasoning cycles
+
+The H-level SAE shows a spike at cycle 1 (~98 active features/token) followed
+by strictly monotonic decrease down to ~75 active features/token. (Note: During these experiments the Q-Head responsible for early stopping was disabled)
+
+![SAE sparsity across HRM reasoning cycles](results/cycle_analysis/avg_active_features_by_cycle.png)
+
+
+The rest of the result figures and metrics live under `results/`.
+
+
+All probing code lives in `probing/`:
+
+| Script | Purpose |
+| --- | --- |
+| `probing/probing_analysis.py` | Extract hidden states via forward hooks. |
+| `probing/train_uae_cluster.py` | Train the undercomplete autoencoder. |
+| `probing/train_sae_cluster.py` | Train the sparse autoencoder. |
+| `probing/classify_cycle_embeddings.py` | Test whether raw/UAE/SAE embeddings predict the ACT cycle. |
+| `probing/analyze_sae_cycles.py` | Compute SAE feature activity per ACT cycle. |
+| `probing/probing_sudoku_structured.py` | Structured extractor for cell-level Sudoku probes. |
+| `probing/train_sudoku_probe.py` | Train cell→digit probes from structured activations. |
+
+Trained weights and raw activation dumps are not committed, but feel free to rerun the scripts to regenerate them.
 
 ---
 
