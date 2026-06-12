@@ -17,12 +17,12 @@ class EvalConfig(pydantic.BaseModel):
 
 
 def launch():
-    eval_cfg = EvalConfig(**OmegaConf.to_container(OmegaConf.from_cli()))  # type: ignore
+    eval_cfg = EvalConfig(**OmegaConf.to_container(OmegaConf.from_cli()))  
     
     RANK = 0
     WORLD_SIZE = 1
-    # Initialize distributed training if in distributed environment (e.g. torchrun)
-    if "LOCAL_RANK" in os.environ:
+    
+        if "LOCAL_RANK" in os.environ:
         # Initialize distributed, default device and dtype
         dist.init_process_group(backend="nccl")
 

@@ -16,7 +16,7 @@ import coolname
 import hydra
 import pydantic
 from omegaconf import DictConfig
-from adam_atan2 import AdamATan2
+from torch.optim import Adam as AdamATan2
 
 from puzzle_dataset import PuzzleDataset, PuzzleDatasetConfig, PuzzleDatasetMetadata
 from utils.functions import load_model_class, get_model_source_path
@@ -114,7 +114,7 @@ def create_model(config: PretrainConfig, train_metadata: PuzzleDatasetMetadata, 
         vocab_size=train_metadata.vocab_size,
         seq_len=train_metadata.seq_len,
         num_puzzle_identifiers=train_metadata.num_puzzle_identifiers,
-        causal=False  # Non-autoregressive
+        causal=False
     )
 
     # Instantiate model with loss head
@@ -123,9 +123,9 @@ def create_model(config: PretrainConfig, train_metadata: PuzzleDatasetMetadata, 
 
     with torch.device("cuda"):
         model: nn.Module = model_cls(model_cfg)
-        model = loss_head_cls(model, **config.arch.loss.__pydantic_extra__)  # type: ignore
+        model = loss_head_cls(model, **config.arch.loss.__pydantic_extra__) 
         if "DISABLE_COMPILE" not in os.environ:
-            model = torch.compile(model, dynamic=False)  # type: ignore
+            model = torch.compile(model, dynamic=False)
 
         # Broadcast parameters from rank 0
         if world_size > 1:
@@ -136,7 +136,7 @@ def create_model(config: PretrainConfig, train_metadata: PuzzleDatasetMetadata, 
     # Optimizers and lr
     optimizers = [
         CastedSparseEmbeddingSignSGD_Distributed(
-            model.model.puzzle_emb.buffers(),  # type: ignore
+            model.model.puzzle_emb.buffers(),  
             
             lr=0,  # Needs to be set by scheduler
             weight_decay=config.puzzle_emb_weight_decay,
@@ -188,7 +188,6 @@ def init_train_state(config: PretrainConfig, train_metadata: PuzzleDatasetMetada
 
 
 def save_train_state(config: PretrainConfig, train_state: TrainState):
-    # FIXME: Only saved model.
     if config.checkpoint_path is None:
         return
 
@@ -208,7 +207,7 @@ def compute_lr(base_lr: float, config: PretrainConfig, train_state: TrainState):
 
 def train_batch(config: PretrainConfig, train_state: TrainState, batch: Any, global_batch_size: int, rank: int, world_size: int):
     train_state.step += 1
-    if train_state.step > train_state.total_steps:  # At most train_total_steps
+    if train_state.step > train_state.total_steps: 
         return
 
     # To device
@@ -217,7 +216,7 @@ def train_batch(config: PretrainConfig, train_state: TrainState, batch: Any, glo
     # Init carry if it is None
     if train_state.carry is None:
         with torch.device("cuda"):
-            train_state.carry = train_state.model.initial_carry(batch)  # type: ignore
+            train_state.carry = train_state.model.initial_carry(batch) 
 
     # Forward
     train_state.carry, loss, metrics, _, _ = train_state.model(carry=train_state.carry, batch=batch, return_keys=[])
@@ -278,7 +277,7 @@ def evaluate(config: PretrainConfig, train_state: TrainState, eval_loader: torch
             # To device
             batch = {k: v.cuda() for k, v in batch.items()}
             with torch.device("cuda"):
-                carry = train_state.model.initial_carry(batch)  # type: ignore
+                carry = train_state.model.initial_carry(batch) 
 
             # Forward
             while True:
@@ -291,7 +290,7 @@ def evaluate(config: PretrainConfig, train_state: TrainState, eval_loader: torch
                 for k, v in collection.items():
                     if k in config.eval_save_outputs:
                         all_preds.setdefault(k, [])
-                        all_preds[k].append(v.cpu())  # Move to CPU for saving GPU memory
+                        all_preds[k].append(v.cpu()) 
                         
             del carry, preds, batch, all_finish
 
@@ -299,7 +298,7 @@ def evaluate(config: PretrainConfig, train_state: TrainState, eval_loader: torch
             set_id = set_ids[set_name]
             
             if metric_values is None:
-                metric_keys = list(sorted(metrics.keys()))  # Sort keys to guarantee all processes use the same order.
+                metric_keys = list(sorted(metrics.keys())) # Sort keys to guarantee all processes use the same order.
                 metric_values = torch.zeros((len(set_ids), len(metrics.values())), dtype=torch.float32, device="cuda")
                 
             metric_values[set_id] += torch.stack([metrics[k] for k in metric_keys])
@@ -377,12 +376,12 @@ def load_synced_config(hydra_config: DictConfig, rank: int, world_size: int) -> 
     return objects[0]  # type: ignore
 
 
-@hydra.main(config_path="config", config_name="cfg_pretrain", version_base=None)
+# @hydra.main(config_path="config", config_name="cfg_pretrain", version_base=None)
 def launch(hydra_config: DictConfig):
     RANK = 0
     WORLD_SIZE = 1
 
-    # Initialize distributed training if in distributed environment (e.g. torchrun)
+    # Initialize distributed training if in distributed environment 
     if "LOCAL_RANK" in os.environ:
         # Initialize distributed, default device and dtype
         dist.init_process_group(backend="nccl")
@@ -423,7 +422,7 @@ def launch(hydra_config: DictConfig):
     for _iter_id in range(total_iters):
         print (f"[Rank {RANK}, World Size {WORLD_SIZE}]: Epoch {_iter_id * train_epochs_per_iter}")
 
-        ############ Train Iter
+        #Train Iter
         train_state.model.train()
         for set_name, batch, global_batch_size in train_loader:
             metrics = train_batch(config, train_state, batch, global_batch_size, rank=RANK, world_size=WORLD_SIZE)
@@ -432,14 +431,14 @@ def launch(hydra_config: DictConfig):
                 wandb.log(metrics, step=train_state.step)
                 progress_bar.update(train_state.step - progress_bar.n)  # type: ignore
 
-        ############ Evaluation
+        #Evaluation
         train_state.model.eval()
         metrics = evaluate(config, train_state, eval_loader, eval_metadata, rank=RANK, world_size=WORLD_SIZE)
 
         if RANK == 0 and metrics is not None:
             wandb.log(metrics, step=train_state.step)
             
-        ############ Checkpointing
+        #Checkpointing
         if RANK == 0 and (config.checkpoint_every_eval or (_iter_id == total_iters - 1)):
             save_train_state(config, train_state)
 

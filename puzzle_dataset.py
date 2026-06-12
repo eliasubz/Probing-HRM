@@ -44,7 +44,7 @@ class PuzzleDatasetConfig(pydantic.BaseModel):
     global_batch_size: int
     test_set_mode: bool
 
-    epochs_per_iter: int  # Batch X epochs in an iteration to reduce overhead.
+    epochs_per_iter: int 
 
     rank: int
     num_replicas: int
@@ -149,7 +149,7 @@ class PuzzleDataset(IterableDataset):
                 start_index += self.config.global_batch_size
 
     def _iter_train(self):
-        for set_name, dataset in self._data.items():  # type: ignore
+        for set_name, dataset in self._data.items(): 
             # Increase epoch count
             self._iters += 1
 
@@ -170,7 +170,7 @@ class PuzzleDataset(IterableDataset):
                 )
 
                 # Select current rank and collate
-                global_effective_batch_size = batch_puzzle_indices.size  # Global effective batch size, excluding pads
+                global_effective_batch_size = batch_puzzle_indices.size 
 
                 # Drop last batch
                 if global_effective_batch_size < self.config.global_batch_size:
